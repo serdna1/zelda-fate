@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Iniciativa Retro FF - Fate Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pa-color: #00ffff;
+            --pd-color: #ffff00;
+            --ef-color: #00ff00;
+            --em-color: #ff00ff;
+            --font-pixel: 'Press Start 2P', cursive;
+            --font-basic: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: #080808;
+            font-family: var(--font-pixel);
+            color: white;
+            overflow-x: hidden;
+            font-size: 10px;
+            -webkit-tap-highlight-color: transparent;
+            position: relative;
+            transform-origin: center center;
+            opacity: 0;
+            animation: startupRotate 1.2s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+        }
+
+        body.basic-font { font-family: var(--font-basic); font-size: 14px; }
+
+        @keyframes startupRotate {
+            0% { transform: scale(0.5) rotate(-15deg); opacity: 0; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+
+        #crt-overlay {
+            position: fixed; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 255, 0, 0.03));
+            z-index: 1000; background-size: 100% 3px, 3px 100%; pointer-events: none;
+        }
+        #crt-overlay.disabled { display: none; }
+
+        .main-container {
+            width: 100%; max-width: 500px; margin: 0 auto;
+            padding: 10px 10px 10px 40px; min-height: 100vh;
+        }
+
+        .scene-aspects-box {
+            background: rgba(0, 0, 80, 0.6); border: 2px solid #efefef;
+            padding: 12px; margin-bottom: 20px; border-radius: 4px;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.4);
+        }
+
+        .scene-input-group { display: flex; gap: 5px; margin-bottom: 10px; }
+
+        .scene-input {
+            flex: 1; background: black; border: 2px solid white;
+            padding: 6px; color: white; font-size: 8px; font-family: inherit;
+        }
+
+        .scene-aspect-item {
+            background: rgba(0,0,0,0.5); border-left: 4px solid var(--pd-color);
+            padding: 6px 10px; margin-top: 6px; font-size: 7px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .round-container {
+            display: flex; flex-direction: column; align-items: center; gap: 12px;
+            margin-bottom: 20px; background: rgba(40, 40, 40, 0.4);
+            padding: 15px; border: 2px dashed #444; border-radius: 8px;
+        }
+
+        .dice-roller-box {
+            display: flex; align-items: center; gap: 15px; background: #000;
+            padding: 10px 15px; border: 2px solid white; border-radius: 4px;
+        }
+
+        .fate-die {
+            width: 28px; height: 28px; background: #222; border: 2px solid white;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; border-radius: 4px; box-shadow: 2px 2px 0 #444;
+        }
+
+        .fate-die.plus { color: #00ff00; }
+        .fate-die.minus { color: #ff0000; }
+
+        @keyframes diceShake {
+            0% { transform: rotate(0deg); }
+            25% { transform: rotate(8deg) translate(2px, -2px); }
+            75% { transform: rotate(-8deg) translate(-2px, 2px); }
+            100% { transform: rotate(0deg); }
+        }
+        .shaking .fate-die { animation: diceShake 0.1s infinite; }
+
+        .dice-clickable-area { display: flex; gap: 4px; cursor: pointer; padding: 5px; }
+
+        .modifier-box-vertical { display: flex; flex-direction: column; align-items: center; border-left: 1px solid #444; padding-left: 12px; }
+        .adjust-btn-v { font-size: 12px; cursor: pointer; padding: 2px 8px; color: #aaa; }
+
+        .ff-panel {
+            border: 3px solid #efefef; border-radius: 4px; position: relative;
+            padding: 15px; width: 100%; margin-bottom: 20px;
+            box-shadow: 0 8px 0 rgba(0,0,0,0.4);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+        }
+
+        .active-turn { 
+            transform: scale(1.03) translateX(10px); z-index: 10; 
+            border-color: #ffffff !important;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.8), 0 8px 0 rgba(0,0,0,0.4);
+        }
+
+        .pixel-arrow {
+            position: absolute; left: -32px; top: 50%; transform: translateY(-50%);
+            width: 0; height: 0; border-top: 10px solid transparent; 
+            border-bottom: 10px solid transparent; border-left: 14px solid white;
+            animation: pointSideToSide 0.6s steps(2) infinite;
+        }
+
+        @keyframes pointSideToSide {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(-6px); }
+        }
+
+        .flame-effect {
+            color: #ff8c00 !important; border-bottom-color: #ff4500 !important;
+            text-shadow: 0 0 8px #ff4500, 0 0 15px #ff8c00;
+            animation: flicker 0.1s infinite;
+        }
+
+        @keyframes flicker { 0% { transform: scale(1); } 100% { transform: scale(1.02); } }
+
+        /* PA Section Custom Style */
+        .pa-row {
+            display: flex;
+            align-items: center;
+            margin: 8px 0 12px 0;
+        }
+        
+        .pa-label {
+            color: var(--pa-color);
+            font-size: 12px;
+            min-width: 45px;
+            text-align: center;
+            text-shadow: 2px 2px #000;
+        }
+
+        .orb-row-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 4px 12px;
+        }
+
+        .slash-line {
+            position: absolute;
+            left: 0; top: 50%;
+            width: 0%; height: 2px;
+            background: white;
+            box-shadow: 0 0 10px white, 0 0 20px var(--pa-color);
+            z-index: 50;
+            pointer-events: none;
+            transform: translateY(-50%) rotate(-2deg);
+        }
+
+        @keyframes slashAnim {
+            0% { width: 0; opacity: 1; height: 1px; }
+            40% { width: 110%; opacity: 1; height: 4px; }
+            100% { width: 110%; opacity: 0; height: 0px; }
+        }
+
+        .slashing .slash-line {
+            animation: slashAnim 0.3s ease-out forwards;
+        }
+
+        .action-orb {
+            width: 26px; height: 26px; border-radius: 50%; border: 2px solid white;
+            background: rgba(0,0,0,0.6); position: relative; transition: opacity 0.2s;
+        }
+        .action-orb.active {
+            background: radial-gradient(circle at 30% 30%, #ff4d4d 0%, #990000 100%);
+            box-shadow: inset 0 0 5px white;
+        }
+
+        .shard {
+            position: absolute; width: 5px; height: 5px; background: rgba(255, 255, 255, 0.9);
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); pointer-events: none;
+        }
+
+        @keyframes shardFly {
+            0% { transform: translate(0, 0) rotate(0deg) scale(1.5); opacity: 1; }
+            100% { transform: translate(var(--tx), var(--ty)) rotate(var(--tr)) scale(0); opacity: 0; }
+        }
+
+        /* Stress Bar Segment Style */
+        .life-bar-segment {
+            display: flex; align-items: center; border: 2px solid white;
+            border-radius: 12px 4px 4px 12px; background: rgba(0, 0, 0, 0.3);
+            margin: 4px 0;
+            overflow: hidden;
+        }
+
+        .bar-label {
+            background: #000; 
+            border-right: 2px solid white; 
+            height: 28px;
+            padding: 0 8px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            font-size: 8px; 
+            min-width: 45px;
+            text-shadow: 1px 1px #000;
+        }
+
+        .stress-segment {
+            width: 24px; height: 24px; background: rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center; font-size: 8px;
+            position: relative; cursor: pointer;
+            border-right: 1px solid rgba(255,255,255,0.1);
+        }
+        .stress-segment:last-child { border-right: none; }
+        
+        .stress-segment.marked::after, .stress-segment.marked::before {
+            content: ''; position: absolute; width: 85%; height: 2px; background: #ff0000;
+        }
+        .stress-segment.marked::after { transform: rotate(45deg); }
+        .stress-segment.marked::before { transform: rotate(-45deg); }
+
+        .skip-btn-label {
+            position: absolute; bottom: 12px; right: 15px; color: #ffff00;
+            font-size: 10px; cursor: pointer; background: none; border: none;
+            text-shadow: 2px 2px #000; letter-spacing: 2px;
+        }
+
+        #fate-modal {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 90%; max-width: 450px; max-height: 85vh;
+            background: #000066; border: 4px double #fff;
+            padding: 20px; z-index: 5000; display: none; overflow-y: auto;
+            box-shadow: 0 0 0 1000px rgba(0,0,0,0.8);
+        }
+
+        .fate-section-title { color: var(--pd-color); border-bottom: 2px solid white; margin: 15px 0 8px; font-size: 9px; }
+        
+        .skill-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+        .skill-casilla { 
+            background: rgba(0,0,0,0.6); border: 1px solid white; 
+            padding: 4px 6px; font-size: 7px; display: flex; align-items: center; gap: 5px;
+        }
+        .skill-level-tag { color: var(--pd-color); font-weight: bold; }
+
+        .stunt-item { font-size: 7px; margin-bottom: 6px; display: flex; gap: 6px; }
+        .stunt-dash { color: var(--pa-color); }
+
+        .fate-textarea {
+            width: 100%; background: rgba(0,0,0,0.5); border: 1px solid #fff;
+            color: #fff; font-family: inherit; font-size: 8px; padding: 8px; min-height: 80px;
+        }
+
+        .theme-blue   { background: linear-gradient(180deg, #0000ad 0%, #000042 100%); }
+        .theme-red    { background: linear-gradient(180deg, #ad0000 0%, #420000 100%); }
+        .theme-green  { background: linear-gradient(180deg, #007000 0%, #003000 100%); }
+        .theme-purple { background: linear-gradient(180deg, #700070 0%, #300030 100%); }
+        .theme-cyan   { background: linear-gradient(180deg, #007070 0%, #003030 100%); }
+        .theme-gold   { background: linear-gradient(180deg, #707000 0%, #303000 100%); }
+        .theme-grey   { background: linear-gradient(180deg, #444444 0%, #111111 100%); }
+
+        .side-controls { position: absolute; top: -10px; right: 5px; display: flex; flex-direction: column; gap: 4px; z-index: 15; }
+        .control-btn { background: #333; border: 2px solid white; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+        .pd-counter { position: absolute; top: -10px; right: 40px; background: #000; border: 2px solid white; padding: 3px 8px; display: flex; align-items: center; gap: 5px; font-size: 9px; }
+
+        .char-name { font-size: 14px; border-bottom: 2px solid white; padding-bottom: 8px; margin-bottom: 12px; display: inline-block; text-transform: uppercase; }
+
+        .adjust-btn { font-size: 18px; padding: 0 8px; cursor: pointer; color: rgba(255,255,255,0.7); }
+        .adjust-btn:hover { color: white; }
+        
+        .status-dot { width: 10px; height: 10px; background: #444; border: 1px solid white; }
+        .status-dot.active { background: #00ff00; }
+
+        .enemy-checkbox {
+            appearance: none; width: 24px; height: 24px; border: 3px solid white;
+            background: black; cursor: pointer; position: relative; outline: none;
+        }
+        .enemy-checkbox::before, .enemy-checkbox::after {
+            content: ''; position: absolute; top: 50%; left: 50%; width: 3px; height: 0;
+            background: #ff0000; transition: height 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .enemy-checkbox::before { transform: translate(-50%, -50%) rotate(45deg); }
+        .enemy-checkbox::after { transform: translate(-50%, -50%) rotate(-45deg); transition-delay: 0.1s; }
+        .enemy-checkbox:checked::before, .enemy-checkbox:checked::after { height: 28px; }
+
+        .enemy-pulse { animation: redAlert 0.4s infinite alternate; border-color: #ff0000 !important; }
+        @keyframes redAlert {
+            0% { box-shadow: 0 0 5px #ff0000, 0 8px 0 rgba(0,0,0,0.4); }
+            100% { box-shadow: 0 0 20px #ff0000, 0 8px 0 rgba(0,0,0,0.4); }
+        }
+
+        .dice-result { font-size: 14px; color: var(--pa-color); min-width: 50px; text-align: center; border-left: 1px solid #444; padding-left: 10px; }
+    </style>
+</head>
+<body onclick="tryInitAudio()">
+
+    <div id="crt-overlay"></div>
+
+    <div id="fate-modal">
+        <h2 id="modal-title" style="color:white; font-size: 12px; text-align: center; margin-bottom: 15px;">FICHA</h2>
+        <div id="modal-view">
+            <div class="fate-section-title">ASPECTOS</div>
+            <div id="view-aspects" class="mb-4 text-[7px] leading-relaxed"></div>
+            <div class="fate-section-title">HABILIDADES</div>
+            <div id="view-skills-container"></div>
+            <div class="fate-section-title">PROEZAS</div>
+            <div id="view-stunts-container" class="mb-4"></div>
+            <button onclick="toggleEditMode(true)" class="w-full bg-blue-900 border-2 border-white p-2 text-[8px] uppercase mb-2">EDITAR DATOS</button>
+            <button onclick="closeFateModal()" class="w-full bg-gray-700 border-2 border-white p-2 text-[8px] uppercase">CERRAR</button>
+        </div>
+        <div id="modal-edit" style="display:none;">
+            <div class="fate-section-title">EDITAR ASPECTOS</div>
+            <textarea id="edit-aspects" class="fate-textarea"></textarea>
+            <div class="fate-section-title">EDITAR HABILIDADES (+X: Habilidad, ...)</div>
+            <textarea id="edit-skills" class="fate-textarea"></textarea>
+            <div class="fate-section-title">EDITAR PROEZAS (Una por línea)</div>
+            <textarea id="edit-stunts" class="fate-textarea"></textarea>
+            <div class="flex gap-4 mt-4">
+                <button onclick="saveFateSheet()" class="flex-1 bg-green-900 border-2 border-white p-2 text-[8px] uppercase">GUARDAR</button>
+                <button onclick="toggleEditMode(false)" class="flex-1 bg-gray-700 border-2 border-white p-2 text-[8px] uppercase">CANCELAR</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="round-container">
+            <div class="flex items-center gap-6">
+                <div class="round-counter uppercase tracking-widest">RONDA: <span id="roundValue">1</span></div>
+                <button onclick="resetRounds()" class="reset-round-btn text-[8px] border border-gray-600 px-2">RESET</button>
+            </div>
+            
+            <div class="dice-roller-box">
+                <div class="dice-clickable-area" id="diceDisplay" onclick="rollFateDice()">
+                    <div class="fate-die"> </div>
+                    <div class="fate-die"> </div>
+                    <div class="fate-die"> </div>
+                    <div class="fate-die"> </div>
+                </div>
+                <div class="modifier-box-vertical">
+                    <span onclick="updateRollMod(1)" class="adjust-btn-v">▲</span>
+                    <span id="rollModValue" class="text-white w-[25px] text-center">0</span>
+                    <span onclick="updateRollMod(-1)" class="adjust-btn-v">▼</span>
+                </div>
+                <div id="rollTotal" class="dice-result">= 0</div>
+            </div>
+        </div>
+
+        <div class="scene-aspects-box">
+            <span class="text-[8px] text-gray-400 block mb-3 uppercase tracking-tighter">Aspectos de Escena</span>
+            <div class="scene-input-group">
+                <input type="text" id="sceneInput" class="scene-input" placeholder="NUEVO ASPECTO..." onkeydown="if(event.key==='Enter') addSceneAspect()">
+                <button onclick="addSceneAspect()" class="bg-green-700 border-2 border-white px-3 text-[12px] font-bold">+</button>
+            </div>
+            <div id="scene-list"></div>
+        </div>
+
+        <div id="creator-panel" class="ff-panel theme-grey flex flex-col gap-3 items-center" onclick="cycleThemeManual()">
+            <span class="text-[8px] uppercase">NUEVO PERSONAJE</span>
+            <input type="text" id="newName" placeholder="..." class="w-full text-center bg-black border-2 border-white p-2 text-white" onclick="event.stopPropagation()">
+            <div class="flex items-center gap-4" onclick="event.stopPropagation()">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="isEnemy" class="enemy-checkbox" onchange="toggleEnemyStyle(this)">
+                    <span class="text-[8px]">ENEMIGO</span>
+                </label>
+                <button onclick="addCharacter()" class="bg-green-700 border-2 border-white p-2 text-[8px] uppercase">Insertar</button>
+            </div>
+        </div>
+
+        <div id="characterList" class="flex flex-col"></div>
+
+        <div class="legend-panel bg-blue-900/40 border-2 border-dashed border-gray-600 p-3 mt-5 text-[7px] leading-relaxed">
+            <div class="text-gray-400 mb-2 underline uppercase">GLOSARIO:</div>
+            <p><b class="text-[#00ffff]">PA:</b> Puntos de Acción</p>
+            <p><b class="text-[#ffff00]">PD:</b> Puntos de Destino</p>
+            <p><b class="text-[#00ff00]">EF:</b> Estrés Físico</p>
+            <p><b class="text-[#ff00ff]">EM:</b> Estrés Mental</p>
+            <div class="mt-3 pt-3 border-t border-gray-700 italic text-gray-400 leading-normal">
+                - Haz clic en el panel para cambiar su color de fondo.
+                <br>- Pulsa el nombre para activar el aura de impulso.
+            </div>
+        </div>
+
+        <div class="config-panel bg-black/60 border-2 border-white p-3 mt-4 flex flex-col gap-2">
+            <div class="flex justify-between items-center cursor-pointer" onclick="toggleTypography()">
+                <span class="text-[6px]">TIPOGRAFÍA: <span id="font-status">PIXELADA</span></span>
+                <div id="font-dot" class="status-dot active"></div>
+            </div>
+            <div class="flex justify-between items-center cursor-pointer" onclick="toggleCRT()">
+                <span class="text-[6px]">EFECTO CRT</span>
+                <div id="crt-dot" class="status-dot active"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- MOTOR DE SONIDO SUAVE ---
+        let audioCtx;
+        let audioInited = false;
+
+        const tryInitAudio = () => {
+            if (!audioInited) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                SoundEngine.startup();
+                audioInited = true;
+            }
+        };
+
+        const SoundEngine = {
+            play(freq, type, duration, vol = 0.05, ramp = true) {
+                if (!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+                if(ramp) gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + duration);
+            },
+            
+            startup() {
+                [261.63, 329.63, 392.00, 523.25].forEach((f, i) => {
+                    setTimeout(() => this.play(f, 'triangle', 0.5, 0.03), i * 150);
+                });
+            },
+
+            glassShatter(isSkip = false) {
+                const count = isSkip ? 10 : 6;
+                for(let i=0; i<count; i++) {
+                    setTimeout(() => {
+                        const f = isSkip ? (200 + Math.random()*300) : (900 + Math.random()*400);
+                        this.play(f, 'triangle', isSkip ? 0.3 : 0.2, isSkip ? 0.04 : 0.02);
+                    }, i * (isSkip ? 30 : 45));
+                }
+            },
+
+            fireWhoosh(active) {
+                if(!active) { this.play(100, 'sine', 0.4, 0.1); return; }
+                const bufferSize = audioCtx.sampleRate * 0.8;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) { data[i] = Math.random() * 2 - 1; }
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(40, audioCtx.currentTime);
+                filter.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.3);
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.8);
+                noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+                noise.start();
+            },
+
+            stress(isMarked) { this.play(isMarked ? 660 : 220, 'sine', 0.15, 0.04); },
+            uiClick() { this.play(500, 'sine', 0.08, 0.03); },
+            uiMagic() { this.play(330, 'triangle', 0.4, 0.06); },
+            uiClose() { 
+                this.play(300, 'sine', 0.1, 0.04);
+                setTimeout(() => this.play(150, 'sine', 0.2), 50);
+            },
+
+            charDelete() {
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(30, now + 0.6);
+                gain.gain.setValueAtTime(0.08, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.6);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(now + 0.6);
+            },
+
+            charAddPC() {
+                [330, 440, 554, 660].forEach((f, i) => {
+                    setTimeout(() => this.play(f, 'triangle', 0.5, 0.03), i * 120);
+                });
+            },
+
+            charAddEnemy() {
+                [98, 92, 87].forEach((f, i) => {
+                    setTimeout(() => this.play(f, 'triangle', 0.7, 0.06), i * 250);
+                });
+            },
+
+            rollDice() {
+                for(let i=0; i<4; i++) {
+                    setTimeout(() => this.play(600 + Math.random()*200, 'sine', 0.15, 0.03), i * 70);
+                }
+            }
+        };
+
+        const themes = ['theme-blue', 'theme-red', 'theme-green', 'theme-purple', 'theme-cyan', 'theme-gold', 'theme-grey'];
+        let sceneAspects = [];
+        let editingIdx = -1;
+        let rollModifier = 0;
+        let characters = [
+            { id: 1, name: 'ECO', paLimit: 3, actions: 0, pd: 3, theme: 'theme-blue', ef: 2, efMarked: [], em: 2, emMarked: [], isOnFire: false, sheet: { aspects: "Zora científico, miedo a grandes, brazo artificial", skills: "+4: Investigar\n+3: Academia, Sigilo, Atletismo", stunts: "Trampero\nBotas de carrera" } },
+            { id: 2, name: 'KALA', paLimit: 3, actions: 0, pd: 3, theme: 'theme-green', ef: 2, efMarked: [], em: 3, emMarked: [], isOnFire: false, sheet: { aspects: "Kokiri superviviente, escriba", skills: "+4: Empatía\n+3: Percepción", stunts: "Fortalecimiento\nPelopicopata" } },
+            { id: 3, name: 'DAAMARO', paLimit: 3, actions: 0, pd: 3, theme: 'theme-gold', ef: 4, efMarked: [], em: 3, emMarked: [], isOnFire: false, sheet: { aspects: "Goron cazador, hijo de mercader", skills: "+4: Físico\n+3: Recursos, Provocar", stunts: "Goro-honda\nPiel de roca" } }
+        ];
+
+        let roundCounter = 1;
+        let initialTopId = characters.length > 0 ? characters[0].id : null;
+        let isPixel = true;
+        let isCRT = true;
+
+        function updateRollMod(val) {
+            tryInitAudio();
+            SoundEngine.uiClick();
+            rollModifier += val;
+            document.getElementById('rollModValue').innerText = rollModifier >= 0 ? `+${rollModifier}` : rollModifier;
+        }
+
+        function rollFateDice() {
+            tryInitAudio();
+            SoundEngine.rollDice();
+            const area = document.getElementById('diceDisplay');
+            area.classList.add('shaking');
+            setTimeout(() => {
+                area.classList.remove('shaking');
+                const diceDisplay = document.getElementById('diceDisplay');
+                const totalDisplay = document.getElementById('rollTotal');
+                diceDisplay.innerHTML = '';
+                let totalDice = 0;
+                const symbols = { '-1': '-', '0': ' ', '1': '+' };
+                const classes = { '-1': 'minus', '0': '', '1': 'plus' };
+                for(let i=0; i<4; i++) {
+                    const roll = Math.floor(Math.random() * 3) - 1;
+                    totalDice += roll;
+                    const die = document.createElement('div');
+                    die.className = `fate-die ${classes[roll]}`;
+                    die.innerText = symbols[roll];
+                    diceDisplay.appendChild(die);
+                }
+                const final = totalDice + rollModifier;
+                totalDisplay.innerText = `= ${final >= 0 ? '+' : ''}${final}`;
+            }, 300);
+        }
+
+        function render() {
+            const list = document.getElementById('characterList');
+            list.innerHTML = '';
+            document.getElementById('roundValue').innerText = roundCounter;
+
+            characters.forEach((char, idx) => {
+                const active = idx === 0;
+                const card = document.createElement('div');
+                card.className = `ff-panel ${char.theme} ${active ? 'active-turn' : ''}`;
+                card.onclick = (e) => { if(e.target === card) { tryInitAudio(); SoundEngine.uiClick(); cycleTheme(idx); } };
+
+                card.innerHTML = `
+                    ${active ? '<div class="pixel-arrow"></div>' : ''}
+                    <div class="side-controls" onclick="event.stopPropagation()">
+                        <div class="control-btn bg-red-800" onclick="removeChar(${char.id}, ${idx})">X</div>
+                        <div class="control-btn bg-blue-900" onclick="openFateSheet(${idx})">📜</div>
+                    </div>
+                    <div class="pd-counter" onclick="event.stopPropagation()">
+                        <span style="color:var(--pd-color)">PD</span>
+                        <div class="flex items-center">
+                            <span onclick="updateVal(${idx},'pd',-1,0,99)" class="adjust-btn"><</span>
+                            <span>${char.pd}</span>
+                            <span onclick="updateVal(${idx},'pd',1,0,99)" class="adjust-btn">></span>
+                        </div>
+                    </div>
+                    <h3 class="char-name ${char.isOnFire ? 'flame-effect':''}" onclick="event.stopPropagation(); toggleImpulse(${idx})">${char.name}</h3>
+                    <div class="flex flex-col gap-1" onclick="event.stopPropagation()">
+                        
+                        <!-- PA: Estilo Independiente -->
+                        <div class="pa-row">
+                            <span onclick="updateVal(${idx},'paLimit',-1,1,4)" class="adjust-btn"><</span>
+                            <div class="pa-label">PA</div>
+                            <div class="orb-row-container" id="orb-row-${char.id}">
+                                <div class="slash-line"></div>
+                                ${Array.from({length:char.paLimit}).map((_,i)=>`<div onclick="togglePA(${idx},${i+1})" id="orb-${char.id}-${i+1}" class="action-orb ${char.actions>=i+1?'active':''}"></div>`).join('')}
+                            </div>
+                            <span onclick="updateVal(${idx},'paLimit',1,1,4)" class="adjust-btn">></span>
+                        </div>
+
+                        <!-- EF y EM: Estilo Barra Segmentada -->
+                        <div class="flex items-center">
+                            <span onclick="updateVal(${idx},'ef',-1,1,4)" class="adjust-btn"><</span>
+                            <div class="life-bar-segment">
+                                <div class="bar-label" style="color:var(--ef-color)">EF</div>
+                                <div class="flex">${Array.from({length:char.ef}).map((_,i)=>`<div onclick="toggleStr(${idx},'ef',${i})" class="stress-segment ${char.efMarked.includes(i)?'marked':''}">${i+1}</div>`).join('')}</div>
+                            </div>
+                            <span onclick="updateVal(${idx},'ef',1,1,4)" class="adjust-btn">></span>
+                        </div>
+
+                        <div class="flex items-center">
+                            <span onclick="updateVal(${idx},'em',-1,1,4)" class="adjust-btn"><</span>
+                            <div class="life-bar-segment">
+                                <div class="bar-label" style="color:var(--em-color)">EM</div>
+                                <div class="flex">${Array.from({length:char.em}).map((_,i)=>`<div onclick="toggleStr(${idx},'em',${i})" class="stress-segment ${char.emMarked.includes(i)?'marked':''}">${i+1}</div>`).join('')}</div>
+                            </div>
+                            <span onclick="updateVal(${idx},'em',1,1,4)" class="adjust-btn">></span>
+                        </div>
+
+                    </div>
+                    ${active ? `<button onclick="event.stopPropagation(); handleSkip(this)" class="skip-btn-label">SKIP</button>` : ''}
+                `;
+                list.appendChild(card);
+            });
+            renderSceneAspects();
+        }
+
+        function renderSceneAspects() {
+            const list = document.getElementById('scene-list');
+            list.innerHTML = '';
+            sceneAspects.forEach((asp, i) => {
+                const item = document.createElement('div');
+                item.className = 'scene-aspect-item';
+                item.innerHTML = `<span>${asp}</span><button onclick="tryInitAudio(); SoundEngine.uiClick(); sceneAspects.splice(${i},1); render();" class="text-red-500 font-bold px-2">X</button>`;
+                list.appendChild(item);
+            });
+        }
+
+        function addSceneAspect() {
+            const input = document.getElementById('sceneInput');
+            if(input.value && sceneAspects.length < 5) {
+                tryInitAudio();
+                SoundEngine.uiMagic();
+                sceneAspects.push(input.value.toUpperCase());
+                input.value = '';
+                render();
+            }
+        }
+
+        function openFateSheet(idx) {
+            tryInitAudio();
+            SoundEngine.uiMagic();
+            editingIdx = idx;
+            const char = characters[idx];
+            document.getElementById('modal-title').innerText = `FICHA DE ${char.name}`;
+            updateFateView(char);
+            document.getElementById('edit-aspects').value = char.sheet.aspects;
+            document.getElementById('edit-skills').value = char.sheet.skills;
+            document.getElementById('edit-stunts').value = char.sheet.stunts;
+            toggleEditMode(false);
+            document.getElementById('fate-modal').style.display = 'block';
+        }
+
+        function updateFateView(char) {
+            document.getElementById('view-aspects').innerText = char.sheet.aspects;
+            const skillsCont = document.getElementById('view-skills-container');
+            skillsCont.innerHTML = '';
+            char.sheet.skills.split('\n').filter(l => l.includes(':')).forEach(line => {
+                const parts = line.split(':');
+                const grid = document.createElement('div');
+                grid.className = 'skill-grid';
+                parts[1].split(',').forEach(n => {
+                    const box = document.createElement('div');
+                    box.className = 'skill-casilla';
+                    box.innerHTML = `<span class="skill-level-tag">${parts[0]}</span> ${n.trim()}`;
+                    grid.appendChild(box);
+                });
+                skillsCont.appendChild(grid);
+            });
+            const stuntsCont = document.getElementById('view-stunts-container');
+            stuntsCont.innerHTML = char.sheet.stunts.split('\n').filter(l => l.trim()).map(l => `<div class="stunt-item"><span class="stunt-dash">-</span><span>${l}</span></div>`).join('');
+        }
+
+        function toggleEditMode(s) { tryInitAudio(); SoundEngine.uiClick(); document.getElementById('modal-view').style.display = s?'none':'block'; document.getElementById('modal-edit').style.display = s?'block':'none'; }
+        function saveFateSheet() {
+            if(editingIdx > -1) {
+                characters[editingIdx].sheet = { aspects: document.getElementById('edit-aspects').value, skills: document.getElementById('edit-skills').value, stunts: document.getElementById('edit-stunts').value };
+            }
+            toggleEditMode(false);
+            openFateSheet(editingIdx); 
+        }
+        function closeFateModal() { tryInitAudio(); SoundEngine.uiClose(); document.getElementById('fate-modal').style.display = 'none'; editingIdx = -1; }
+
+        function togglePA(idx, n) {
+            if(idx !== 0) return;
+            tryInitAudio();
+            const cur = characters[idx].actions;
+            characters[idx].actions = (cur === n) ? n - 1 : n;
+            SoundEngine.uiClick();
+            render();
+            if(characters[idx].actions >= characters[idx].paLimit) {
+                setTimeout(() => handleSkip(document.querySelector('.skip-btn-label')), 400);
+            }
+        }
+
+        function handleSkip(btn) {
+            if(!btn || btn.disabled) return;
+            tryInitAudio();
+            const char = characters[0];
+            const container = document.getElementById(`orb-row-${char.id}`);
+            container.classList.add('slashing');
+            
+            setTimeout(() => {
+                SoundEngine.glassShatter(true);
+                for(let i=1; i<=char.paLimit; i++) {
+                    const orb = document.getElementById(`orb-${char.id}-${i}`);
+                    if(orb) { orb.style.opacity = '0'; shatter(orb); }
+                }
+                setTimeout(() => {
+                    const f = characters.shift();
+                    f.actions = 0;
+                    characters.push(f);
+                    if(characters[0].id === initialTopId) roundCounter++;
+                    render();
+                }, 500);
+            }, 300);
+        }
+
+        function shatter(el) {
+            if(!el) return;
+            const parent = el.parentElement;
+            const rect = el.getBoundingClientRect();
+            const containerRect = parent.getBoundingClientRect();
+            for(let i=0; i<12; i++) {
+                const s = document.createElement('div');
+                s.className = 'shard';
+                s.style.setProperty('--tx', `${(Math.random()-0.5)*120}px`);
+                s.style.setProperty('--ty', `${(Math.random()-0.5)*120}px`);
+                s.style.setProperty('--tr', `${Math.random()*720}deg`);
+                s.style.left = `${rect.left - containerRect.left + 13}px`;
+                s.style.top = `${rect.top - containerRect.top + 13}px`;
+                s.style.animation = 'shardFly 0.5s ease-out forwards';
+                parent.appendChild(s);
+                setTimeout(()=>s.remove(), 500);
+            }
+        }
+
+        function toggleImpulse(idx) {
+            tryInitAudio();
+            characters[idx].isOnFire = !characters[idx].isOnFire;
+            SoundEngine.fireWhoosh(characters[idx].isOnFire);
+            render();
+        }
+
+        function updateVal(idx, k, a, min, max) {
+            tryInitAudio();
+            SoundEngine.uiClick();
+            characters[idx][k] = Math.min(max, Math.max(min, characters[idx][k] + a));
+            render();
+        }
+
+        function toggleStr(idx, t, p) {
+            tryInitAudio();
+            const m = characters[idx][t+'Marked'];
+            const i = m.indexOf(p);
+            if(i === -1) m.push(p); else m.splice(i,1);
+            SoundEngine.stress(i === -1);
+            render();
+        }
+
+        function cycleTheme(idx) { characters[idx].theme = themes[(themes.indexOf(characters[idx].theme) + 1) % themes.length]; render(); }
+        function cycleThemeManual() { tryInitAudio(); SoundEngine.uiClick(); const el = document.getElementById('creator-panel'); const curr = themes.find(t => el.classList.contains(t)); el.classList.remove(curr); el.classList.add(themes[(themes.indexOf(curr)+1)%themes.length]); }
+        function toggleTypography() { tryInitAudio(); SoundEngine.uiClick(); isPixel = !isPixel; document.body.classList.toggle('basic-font', !isPixel); document.getElementById('font-status').innerText = isPixel ? 'PIXELADA' : 'BÁSICA'; document.getElementById('font-dot').classList.toggle('active', isPixel); }
+        function toggleCRT() { tryInitAudio(); SoundEngine.uiClick(); isCRT = !isCRT; document.getElementById('crt-overlay').classList.toggle('disabled', !isCRT); document.getElementById('crt-dot').classList.toggle('active', isCRT); }
+        function resetRounds() { tryInitAudio(); SoundEngine.uiMagic(); roundCounter = 1; initialTopId = characters[0]?.id; render(); }
+        function toggleEnemyStyle(cb) { tryInitAudio(); SoundEngine.uiClick(); document.getElementById('creator-panel').classList.toggle('enemy-pulse', cb.checked); }
+
+        function addCharacter() {
+            tryInitAudio();
+            const n = document.getElementById('newName').value.trim();
+            const isEnemy = document.getElementById('isEnemy').checked;
+            if(n) {
+                if(isEnemy) SoundEngine.charAddEnemy(); else SoundEngine.charAddPC();
+                characters.push({ id: Date.now(), name: n.toUpperCase(), paLimit: 3, actions: 0, pd: 3, theme: isEnemy ? 'theme-red' : 'theme-blue', ef: 2, efMarked: [], em: 2, emMarked: [], isOnFire: false, sheet: { aspects: "", skills: "+4: \n+3: \n+2: \n+1: ", stunts: "" } });
+                document.getElementById('newName').value = '';
+                render();
+            }
+        }
+        function removeChar(id, idx) { tryInitAudio(); SoundEngine.charDelete(); characters.splice(idx,1); render(); }
+
+        // --- Supabase sync y persistencia ---
+        const SUPABASE_URL = 'https://wpafrwqmuebfjyvkxqqa.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_hP_jkwczbhPJnwhp9vCiAg_3irWmplw';
+        const GAME_ROOM_ID = 'fate-room-1';
+
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        let isApplyingRemote = false;
+        let isInitializing = true;
+
+        function getGameState() {
+            return {
+                characters,
+                roundCounter,
+                initialTopId,
+                isPixel,
+                isCRT,
+                sceneAspects,
+                rollModifier,
+            };
+        }
+
+        async function persistGameState() {
+            if (isApplyingRemote || isInitializing) return;
+            try {
+                await supabaseClient
+                    .from('game_state')
+                    .upsert({ room_id: GAME_ROOM_ID, state: getGameState() }, { onConflict: 'room_id' });
+            } catch (err) {
+                console.error('Supabase save error', err);
+            }
+        }
+
+        function scheduleSave() {
+            if (isApplyingRemote || isInitializing) return;
+            if (window.__fateSaveTimeout) clearTimeout(window.__fateSaveTimeout);
+            window.__fateSaveTimeout = setTimeout(persistGameState, 350);
+        }
+
+        function render() {
+            const list = document.getElementById('characterList');
+            list.innerHTML = '';
+            document.getElementById('roundValue').innerText = roundCounter;
+
+            characters.forEach((char, idx) => {
+                const active = idx === 0;
+                const card = document.createElement('div');
+                card.className = `ff-panel ${char.theme} ${active ? 'active-turn' : ''}`;
+                card.onclick = (e) => { if(e.target === card) { tryInitAudio(); SoundEngine.uiClick(); cycleTheme(idx); } };
+
+                card.innerHTML = `
+                    ${active ? '<div class="pixel-arrow"></div>' : ''}
+                    <div class="side-controls" onclick="event.stopPropagation()">
+                        <div class="control-btn bg-red-800" onclick="removeChar(${char.id}, ${idx})">X</div>
+                        <div class="control-btn bg-blue-900" onclick="openFateSheet(${idx})">📜</div>
+                    </div>
+                    <div class="pd-counter" onclick="event.stopPropagation()">
+                        <span style="color:var(--pd-color)">PD</span>
+                        <div class="flex items-center">
+                            <span onclick="updateVal(${idx},'pd',-1,0,99)" class="adjust-btn"><</span>
+                            <span>${char.pd}</span>
+                            <span onclick="updateVal(${idx},'pd',1,0,99)" class="adjust-btn">></span>
+                        </div>
+                    </div>
+                    <h3 class="char-name ${char.isOnFire ? 'flame-effect':''}" onclick="event.stopPropagation(); toggleImpulse(${idx})">${char.name}</h3>
+                    <div class="flex flex-col gap-1" onclick="event.stopPropagation()">
+                        
+                        <!-- PA: Estilo Independiente -->
+                        <div class="pa-row">
+                            <span onclick="updateVal(${idx},'paLimit',-1,1,4)" class="adjust-btn"><</span>
+                            <div class="pa-label">PA</div>
+                            <div class="orb-row-container" id="orb-row-${char.id}">
+                                <div class="slash-line"></div>
+                                ${Array.from({length:char.paLimit}).map((_,i)=>`<div onclick="togglePA(${idx},${i+1})" id="orb-${char.id}-${i+1}" class="action-orb ${char.actions>=i+1?'active':''}"></div>`).join('')}
+                            </div>
+                            <span onclick="updateVal(${idx},'paLimit',1,1,4)" class="adjust-btn">></span>
+                        </div>
+
+                        <!-- EF y EM: Estilo Barra Segmentada -->
+                        <div class="flex items-center">
+                            <span onclick="updateVal(${idx},'ef',-1,1,4)" class="adjust-btn"><</span>
+                            <div class="life-bar-segment">
+                                <div class="bar-label" style="color:var(--ef-color)">EF</div>
+                                <div class="flex">${Array.from({length:char.ef}).map((_,i)=>`<div onclick="toggleStr(${idx},'ef',${i})" class="stress-segment ${char.efMarked.includes(i)?'marked':''}">${i+1}</div>`).join('')}</div>
+                            </div>
+                            <span onclick="updateVal(${idx},'ef',1,1,4)" class="adjust-btn">></span>
+                        </div>
+
+                        <div class="flex items-center">
+                            <span onclick="updateVal(${idx},'em',-1,1,4)" class="adjust-btn"><</span>
+                            <div class="life-bar-segment">
+                                <div class="bar-label" style="color:var(--em-color)">EM</div>
+                                <div class="flex">${Array.from({length:char.em}).map((_,i)=>`<div onclick="toggleStr(${idx},'em',${i})" class="stress-segment ${char.emMarked.includes(i)?'marked':''}">${i+1}</div>`).join('')}</div>
+                            </div>
+                            <span onclick="updateVal(${idx},'em',1,1,4)" class="adjust-btn">></span>
+                        </div>
+
+                    </div>
+                    ${active ? `<button onclick="event.stopPropagation(); handleSkip(this)" class="skip-btn-label">SKIP</button>` : ''}
+                `;
+                list.appendChild(card);
+            });
+            renderSceneAspects();
+            if (!isApplyingRemote && !isInitializing) {
+                scheduleSave();
+            }
+        }
+
+        function restoreState(state) {
+            if (!state) return;
+            isApplyingRemote = true;
+            characters = state.characters || characters;
+            roundCounter = state.roundCounter || roundCounter;
+            initialTopId = state.initialTopId || initialTopId;
+            isPixel = typeof state.isPixel === 'boolean' ? state.isPixel : isPixel;
+            isCRT = typeof state.isCRT === 'boolean' ? state.isCRT : isCRT;
+            sceneAspects = state.sceneAspects || sceneAspects;
+            rollModifier = state.rollModifier || rollModifier;
+            if (isPixel) document.body.classList.remove('basic-font'); else document.body.classList.add('basic-font');
+            document.getElementById('font-status').innerText = isPixel ? 'PIXELADA' : 'BÁSICA';
+            document.getElementById('font-dot').classList.toggle('active', isPixel);
+            document.getElementById('crt-overlay').classList.toggle('disabled', !isCRT);
+            document.getElementById('crt-dot').classList.toggle('active', isCRT);
+            render();
+            isApplyingRemote = false;
+        }
+
+        async function loadGameState() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('game_state')
+                    .select('state')
+                    .eq('room_id', GAME_ROOM_ID)
+                    .single();
+                if (error && error.code !== 'PGRST116') {
+                    console.error('Supabase load error', error);
+                }
+                if (data && data.state) {
+                    restoreState(data.state);
+                } else {
+                    render();
+                }
+            } catch (err) {
+                console.error('Supabase load exception', err);
+                render();
+            }
+        }
+
+        function startRealtimeSync() {
+            supabaseClient
+                .channel(`realtime-game-${GAME_ROOM_ID}`)
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'game_state', filter: `room_id=eq.${GAME_ROOM_ID}` }, payload => {
+                    if (payload.new?.state) {
+                        restoreState(payload.new.state);
+                    }
+                })
+                .subscribe();
+        }
+
+        window.onload = async () => {
+            await loadGameState();
+            startRealtimeSync();
+            isInitializing = false;
+        };
+    </script>
+</body>
+</html>

@@ -683,7 +683,8 @@
                 characters[editingIdx].sheet = { aspects: document.getElementById('edit-aspects').value, skills: document.getElementById('edit-skills').value, stunts: document.getElementById('edit-stunts').value };
             }
             toggleEditMode(false);
-            openFateSheet(editingIdx); 
+            openFateSheet(editingIdx);
+            persistGameState(); 
         }
         function closeFateModal() { tryInitAudio(); SoundEngine.uiClose(); document.getElementById('fate-modal').style.display = 'none'; editingIdx = -1; }
 

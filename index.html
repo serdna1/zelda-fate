@@ -304,6 +304,17 @@
         }
 
         .dice-result { font-size: 14px; color: var(--pa-color); min-width: 50px; text-align: center; border-left: 1px solid #444; padding-left: 10px; }
+
+        @keyframes cardSwapUp {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(calc(-100% - 20px)); opacity: 1; }
+        }
+        @keyframes cardSwapDown {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(calc(100% + 20px)); opacity: 1; }
+        }
+        .card-swapping-up { animation: cardSwapUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        .card-swapping-down { animation: cardSwapDown 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
     </style>
 </head>
 <body onclick="tryInitAudio()">
@@ -785,6 +796,42 @@
         }
         function removeChar(id, idx) { tryInitAudio(); SoundEngine.charDelete(); characters.splice(idx,1); render(); }
 
+        function moveCharUp(idx) {
+            if (idx === 0) return;
+            tryInitAudio();
+            SoundEngine.uiMagic();
+            const cards = document.querySelectorAll('#characterList .ff-panel');
+            const currentCard = cards[idx];
+            const prevCard = cards[idx - 1];
+            
+            currentCard.classList.add('card-swapping-up');
+            prevCard.classList.add('card-swapping-down');
+            
+            setTimeout(() => {
+                [characters[idx], characters[idx - 1]] = [characters[idx - 1], characters[idx]];
+                render();
+                persistGameState();
+            }, 400);
+        }
+
+        function moveCharDown(idx) {
+            if (idx === characters.length - 1) return;
+            tryInitAudio();
+            SoundEngine.uiMagic();
+            const cards = document.querySelectorAll('#characterList .ff-panel');
+            const currentCard = cards[idx];
+            const nextCard = cards[idx + 1];
+            
+            currentCard.classList.add('card-swapping-down');
+            nextCard.classList.add('card-swapping-up');
+            
+            setTimeout(() => {
+                [characters[idx], characters[idx + 1]] = [characters[idx + 1], characters[idx]];
+                render();
+                persistGameState();
+            }, 400);
+        }
+
         // --- Supabase sync y persistencia ---
         const SUPABASE_URL = 'https://wpafrwqmuebfjyvkxqqa.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_hP_jkwczbhPJnwhp9vCiAg_3irWmplw';
@@ -839,6 +886,8 @@
                     <div class="side-controls" onclick="event.stopPropagation()">
                         <div class="control-btn bg-red-800" onclick="removeChar(${char.id}, ${idx})">X</div>
                         <div class="control-btn bg-blue-900" onclick="openFateSheet(${idx})">📜</div>
+                        <div class="control-btn bg-gray-700" onclick="moveCharUp(${idx})" style="opacity: ${idx === 0 ? '0.4' : '1'}">▲</div>
+                        <div class="control-btn bg-gray-700" onclick="moveCharDown(${idx})" style="opacity: ${idx === characters.length - 1 ? '0.4' : '1'}">▼</div>
                     </div>
                     <div class="pd-counter" onclick="event.stopPropagation()">
                         <span style="color:var(--pd-color)">PD</span>
